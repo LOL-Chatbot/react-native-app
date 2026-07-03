@@ -1,0 +1,6 @@
+Starting project at C:\Users\jinwo\Documents\GitHub\lol_chatbot\lol_chatbot_front
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
