@@ -2,16 +2,18 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { apiClient } from "../api/client";
-import { Card, ErrorNotice, Input, PrimaryButton } from "../components/Ui";
+import { Card, ErrorNotice, ImageBadge, Input, PrimaryButton, SectionTitle } from "../components/Ui";
 import { colors } from "../theme/colors";
+import { BuildData, ChatAttachment, CounterChampion, CounterData, NamedImage } from "../types/api";
 
 type Message = {
   id: string;
   role: "user" | "assistant" | "status";
   text: string;
+  attachments?: ChatAttachment[];
 };
 
-const quickQuestions = ["징크스 원딜 빌드", "미드 카운터", "듀오 추천"];
+const quickQuestions = ["징크스 원딜 빌드", "아리 미드 카운터", "듀오 추천"];
 
 export function ChatScreen() {
   const [message, setMessage] = useState("");
@@ -42,7 +44,12 @@ export function ChatScreen() {
       const data = await apiClient.sendChat(text);
       setMessages((prev) => [
         ...prev.filter((item) => item.role !== "status"),
-        { id: `${Date.now()}-assistant`, role: "assistant", text: data.answer }
+        {
+          id: `${Date.now()}-assistant`,
+          role: "assistant",
+          text: sanitizeAnswer(data.answer),
+          attachments: data.attachments ?? []
+        }
       ]);
     } catch (err) {
       setMessages((prev) => prev.filter((item) => item.role !== "status"));
@@ -67,24 +74,7 @@ export function ChatScreen() {
         <Card>
           <View style={styles.chatList}>
             {messages.map((item) => (
-              <View
-                key={item.id}
-                style={[
-                  styles.message,
-                  item.role === "user" && styles.userMessage,
-                  item.role === "status" && styles.statusMessage
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.messageText,
-                    item.role === "user" && styles.userMessageText,
-                    item.role === "status" && styles.statusMessageText
-                  ]}
-                >
-                  {item.text}
-                </Text>
-              </View>
+              <MessageBlock key={item.id} message={item} />
             ))}
           </View>
         </Card>
@@ -100,6 +90,153 @@ export function ChatScreen() {
       </View>
     </KeyboardAvoidingView>
   );
+}
+
+function MessageBlock({ message }: { message: Message }) {
+  return (
+    <View style={[styles.messageBlock, message.role === "user" && styles.userMessageBlock]}>
+      <View
+        style={[
+          styles.message,
+          message.role === "user" && styles.userMessage,
+          message.role === "status" && styles.statusMessage
+        ]}
+      >
+        <Text
+          style={[
+            styles.messageText,
+            message.role === "user" && styles.userMessageText,
+            message.role === "status" && styles.statusMessageText
+          ]}
+        >
+          {message.text}
+        </Text>
+      </View>
+
+      {message.role === "assistant" && message.attachments?.length ? (
+        <View style={styles.attachments}>
+          {message.attachments.map((attachment, index) => (
+            <ChatAttachmentCard key={getAttachmentKey(attachment, index)} attachment={attachment} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function ChatAttachmentCard({ attachment }: { attachment: ChatAttachment }) {
+  if (attachment.type === "champion_build") {
+    return <ChatBuildCard build={(attachment as { data: BuildData }).data} title={attachment.title} />;
+  }
+
+  if (attachment.type === "counters") {
+    return <ChatCounterCard counters={(attachment as { data: CounterData }).data} title={attachment.title} />;
+  }
+
+  return null;
+}
+
+function ChatBuildCard({ build, title }: { build: BuildData; title: string }) {
+  const counters = build.counters ?? [];
+
+  return (
+    <View style={styles.attachmentCard}>
+      <View style={styles.attachmentHero}>
+        <ImageBadge item={build.champion_image ?? null} size={58} />
+        <View style={styles.attachmentHeroText}>
+          <Text style={styles.attachmentTitle}>{title}</Text>
+          <Text style={styles.attachmentSubtitle}>{build.summary ?? "OP.GG MCP 기반 빌드 요약"}</Text>
+        </View>
+      </View>
+
+      <MiniBuildRow
+        title="룬"
+        subtitle={`${build.runes?.primary_style ?? "-"} · ${build.runes?.secondary_style ?? "-"}`}
+        items={[build.runes?.keystone, ...(build.runes?.primary_rune_images ?? [])].filter(Boolean) as NamedImage[]}
+      />
+      <MiniBuildRow title="스펠" subtitle={names(build.spells)} items={build.spells} />
+      <MiniBuildRow title="시작" subtitle={names(build.items?.start_items)} items={build.items?.start_items} />
+      <MiniBuildRow title="신발" subtitle={names(build.items?.boots)} items={build.items?.boots} />
+      <MiniBuildRow title="코어" subtitle={names(build.items?.core_items)} items={build.items?.core_items} />
+      <MiniBuildRow
+        title="스킬"
+        subtitle={build.skills?.priority?.join(" > ") || "스킬 선마"}
+        items={build.skills?.priority_images}
+      />
+
+      {counters.length > 0 ? (
+        <View style={styles.counterMiniList}>
+          <Text style={styles.miniTitle}>카운터</Text>
+          {counters.slice(0, 3).map((counter, index) => (
+            <CounterRow key={getCounterKey(counter, index)} counter={counter} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function ChatCounterCard({ counters, title }: { counters: CounterData; title: string }) {
+  return (
+    <View style={styles.attachmentCard}>
+      <SectionTitle title={title} subtitle="상대하기 까다로운 챔피언" />
+      {counters.counters.length > 0 ? (
+        counters.counters.slice(0, 5).map((counter, index) => (
+          <CounterRow key={getCounterKey(counter, index)} counter={counter} />
+        ))
+      ) : (
+        <Text style={styles.emptyText}>조회된 카운터 정보가 없습니다.</Text>
+      )}
+    </View>
+  );
+}
+
+function MiniBuildRow({ title, subtitle, items }: { title: string; subtitle: string; items?: NamedImage[] }) {
+  return (
+    <View style={styles.miniRow}>
+      <View style={styles.miniText}>
+        <Text style={styles.miniTitle}>{title}</Text>
+        <Text style={styles.miniSubtitle}>{subtitle || "-"}</Text>
+      </View>
+      <View style={styles.iconRow}>
+        {(items ?? []).slice(0, 6).map((item, index) => (
+          <ImageBadge key={getNamedImageKey(title, item, index)} item={item} size={34} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function CounterRow({ counter }: { counter: CounterChampion }) {
+  return (
+    <View style={styles.counterRow}>
+      <ImageBadge item={counter.image ?? null} size={34} />
+      <View style={styles.counterTextWrap}>
+        <Text style={styles.counterName}>{counter.name_ko}</Text>
+        <Text style={styles.counterReason}>{counter.reason ?? "OP.GG 기준 까다로운 매치업입니다."}</Text>
+      </View>
+    </View>
+  );
+}
+
+function sanitizeAnswer(value: string) {
+  return value.replace(/<img[^>]*>/g, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function names(items?: NamedImage[]) {
+  return items?.map((item) => item.name).join(" · ") || "-";
+}
+
+function getAttachmentKey(attachment: ChatAttachment, index: number) {
+  return [attachment.type, attachment.title, index].filter(Boolean).join("-");
+}
+
+function getNamedImageKey(title: string, item: NamedImage, index: number) {
+  return [title, item.image?.image_key, item.name, index].filter(Boolean).join("-");
+}
+
+function getCounterKey(counter: CounterChampion, index: number) {
+  return [counter.champion_id, counter.name_ko, index].filter(Boolean).join("-");
 }
 
 const styles = StyleSheet.create({
@@ -138,6 +275,14 @@ const styles = StyleSheet.create({
     minHeight: 360,
     gap: 14
   },
+  messageBlock: {
+    width: "100%",
+    alignSelf: "flex-start",
+    gap: 8
+  },
+  userMessageBlock: {
+    alignSelf: "flex-end"
+  },
   message: {
     maxWidth: "86%",
     borderRadius: 8,
@@ -164,6 +309,100 @@ const styles = StyleSheet.create({
   statusMessageText: {
     color: colors.available,
     fontWeight: "700"
+  },
+  attachments: {
+    width: "100%",
+    alignSelf: "stretch",
+    gap: 12
+  },
+  attachmentCard: {
+    width: "100%",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 14,
+    gap: 12
+  },
+  attachmentHero: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingBottom: 2
+  },
+  attachmentHeroText: {
+    flex: 1,
+    minWidth: 0
+  },
+  attachmentTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 23
+  },
+  attachmentSubtitle: {
+    marginTop: 4,
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  miniRow: {
+    minHeight: 72,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceMuted,
+    gap: 8
+  },
+  miniText: {
+    width: "100%"
+  },
+  miniTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "900"
+  },
+  miniSubtitle: {
+    marginTop: 3,
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  iconRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7
+  },
+  counterMiniList: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceMuted,
+    gap: 8
+  },
+  counterRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10
+  },
+  counterTextWrap: {
+    flex: 1,
+    minWidth: 0
+  },
+  counterName: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "900"
+  },
+  counterReason: {
+    marginTop: 3,
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 18
+  },
+  emptyText: {
+    color: colors.textMuted,
+    fontSize: 13
   },
   inputBar: {
     flexDirection: "row",

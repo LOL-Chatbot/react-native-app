@@ -1,9 +1,9 @@
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, StyleSheet } from "react-native";
-import { useState } from "react";
+import { ReactNode, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppShell, TabKey } from "./src/components/AppShell";
-import { BuildScreen } from "./src/screens/BuildScreen";
 import { ChampionsScreen } from "./src/screens/ChampionsScreen";
 import { ChatScreen } from "./src/screens/ChatScreen";
 import { SpellTimerScreen } from "./src/screens/SpellTimerScreen";
@@ -13,15 +13,30 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("chat");
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaProvider>
       <StatusBar style="dark" />
-      <AppShell activeTab={activeTab} onChangeTab={setActiveTab}>
-        {activeTab === "chat" && <ChatScreen />}
-        {activeTab === "build" && <BuildScreen />}
-        {activeTab === "champions" && <ChampionsScreen onOpenBuild={() => setActiveTab("build")} />}
-        {activeTab === "spells" && <SpellTimerScreen />}
-      </AppShell>
-    </SafeAreaView>
+      <View style={styles.safeArea}>
+        <AppShell activeTab={activeTab} onChangeTab={setActiveTab}>
+          <ScreenSlot visible={activeTab === "chat"}>
+            <ChatScreen />
+          </ScreenSlot>
+          <ScreenSlot visible={activeTab === "champions"}>
+            <ChampionsScreen />
+          </ScreenSlot>
+          <ScreenSlot visible={activeTab === "spells"}>
+            <SpellTimerScreen />
+          </ScreenSlot>
+        </AppShell>
+      </View>
+    </SafeAreaProvider>
+  );
+}
+
+function ScreenSlot({ visible, children }: { visible: boolean; children: ReactNode }) {
+  return (
+    <View pointerEvents={visible ? "auto" : "none"} style={[styles.screen, !visible && styles.hiddenScreen]}>
+      {children}
+    </View>
   );
 }
 
@@ -29,5 +44,11 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.background
+  },
+  screen: {
+    flex: 1
+  },
+  hiddenScreen: {
+    display: "none"
   }
 });

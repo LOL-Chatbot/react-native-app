@@ -47,7 +47,25 @@ export type ChatData = {
     champion_id: string;
     name_ko: string;
   }>;
+  attachments?: ChatAttachment[];
 };
+
+export type ChatAttachment =
+  | {
+      type: "champion_build";
+      title: string;
+      data: BuildData;
+    }
+  | {
+      type: "counters";
+      title: string;
+      data: CounterData;
+    }
+  | {
+      type: string;
+      title: string;
+      data: unknown;
+    };
 
 export type BuildData = {
   champion_id: string;
@@ -75,11 +93,19 @@ export type BuildData = {
     priority_images?: NamedImage[];
     description?: string;
   };
-  counters?: Array<{
-    champion_id: string;
-    name_ko: string;
-    reason?: string;
-    image?: ImageData | null;
-  }>;
+  counters?: CounterChampion[];
   summary?: string;
+};
+
+export type CounterChampion = {
+  champion_id: string;
+  name_ko: string;
+  reason?: string;
+  image?: ImageData | null;
+};
+
+export type CounterData = {
+  champion_id: string;
+  position: Position;
+  counters: CounterChampion[];
 };

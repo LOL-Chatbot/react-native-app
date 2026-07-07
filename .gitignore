@@ -14,7 +14,6 @@ expo_server.out.log
 
 .env
 .env.*
-!.env.example
 
 dist/
 build/
