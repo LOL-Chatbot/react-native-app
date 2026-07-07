@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { apiClient } from "../api/client";
 import { Card, ErrorNotice, ImageBadge, Input, PrimaryButton, SectionTitle } from "../components/Ui";
 import { colors } from "../theme/colors";
-import { BuildData, ChatAttachment, CounterChampion, CounterData, NamedImage } from "../types/api";
+import { BuildData, ChatAttachment, CounterChampion, CounterData, NamedImage, RuneOption, RuneTree, StatShardRow } from "../types/api";
 
 type Message = {
   id: string;
@@ -149,11 +149,19 @@ function ChatBuildCard({ build, title }: { build: BuildData; title: string }) {
         </View>
       </View>
 
-      <MiniBuildRow
-        title="룬"
-        subtitle={`${build.runes?.primary_style ?? "-"} · ${build.runes?.secondary_style ?? "-"}`}
-        items={[build.runes?.keystone, ...(build.runes?.primary_rune_images ?? [])].filter(Boolean) as NamedImage[]}
-      />
+      {build.runes?.primary_tree || build.runes?.secondary_tree ? (
+        <RuneSummaryCard
+          primaryTree={build.runes.primary_tree ?? null}
+          secondaryTree={build.runes.secondary_tree ?? null}
+          statShardRows={build.runes.stat_shard_rows ?? []}
+        />
+      ) : (
+        <MiniBuildRow
+          title="룬"
+          subtitle={`${build.runes?.primary_style ?? "-"} · ${build.runes?.secondary_style ?? "-"}`}
+          items={[build.runes?.keystone, ...(build.runes?.primary_rune_images ?? [])].filter(Boolean) as NamedImage[]}
+        />
+      )}
       <MiniBuildRow title="스펠" subtitle={names(build.spells)} items={build.spells} />
       <MiniBuildRow title="시작" subtitle={names(build.items?.start_items)} items={build.items?.start_items} />
       <MiniBuildRow title="신발" subtitle={names(build.items?.boots)} items={build.items?.boots} />
@@ -186,6 +194,87 @@ function ChatCounterCard({ counters, title }: { counters: CounterData; title: st
         ))
       ) : (
         <Text style={styles.emptyText}>조회된 카운터 정보가 없습니다.</Text>
+      )}
+    </View>
+  );
+}
+
+function RuneSummaryCard({
+  primaryTree,
+  secondaryTree,
+  statShardRows
+}: {
+  primaryTree?: RuneTree | null;
+  secondaryTree?: RuneTree | null;
+  statShardRows?: StatShardRow[];
+}) {
+  return (
+    <View style={styles.runeCard}>
+      <Text style={styles.miniTitle}>룬</Text>
+      <View style={styles.runeTrees}>
+        {primaryTree ? <RuneTreeView tree={primaryTree} title="메인 룬" /> : null}
+        {secondaryTree ? <RuneTreeView tree={secondaryTree} title="보조 룬" compact /> : null}
+      </View>
+      {statShardRows?.length ? (
+        <View style={styles.statShardPanel}>
+          <Text style={styles.runeTreeTitle}>능력치</Text>
+          {statShardRows.map((row, index) => (
+            <View key={`stat-${index}`} style={styles.runeSlotRow}>
+              {row.runes.map((rune) => (
+                <RuneIcon key={`${index}-${rune.id}`} rune={rune} size={22} />
+              ))}
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function RuneTreeView({ tree, title, compact }: { tree: RuneTree; title: string; compact?: boolean }) {
+  return (
+    <View style={styles.runeTreePanel}>
+      <Text style={styles.runeTreeTitle}>
+        {title} · {tree.name}
+      </Text>
+      {tree.slots.map((slot, index) => (
+        <View key={`${tree.style_id ?? tree.name}-${index}`} style={styles.runeSlotRow}>
+          {slot.runes.map((rune) => (
+            <RuneIcon key={rune.id} rune={rune} size={compact ? 22 : 24} />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function RuneIcon({ rune, size }: { rune: RuneOption; size: number }) {
+  const uri = rune.image?.image_url ?? undefined;
+  return (
+    <View
+      style={[
+        styles.runeIcon,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          opacity: rune.selected ? 1 : 0.28
+        },
+        rune.selected && styles.runeIconSelected
+      ]}
+    >
+      {uri ? (
+        <Image
+          source={{ uri }}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            tintColor: rune.selected ? undefined : "#94A3B8"
+          }}
+        />
+      ) : (
+        <Text style={[styles.runeFallback, rune.selected && styles.runeFallbackSelected]}>{rune.name.slice(0, 1)}</Text>
       )}
     </View>
   );
@@ -371,6 +460,55 @@ const styles = StyleSheet.create({
   iconRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 7
+  },
+  runeCard: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceMuted,
+    gap: 10
+  },
+  runeTrees: {
+    flexDirection: "row",
+    gap: 10
+  },
+  runeTreePanel: {
+    flex: 1,
+    minWidth: 0,
+    gap: 7
+  },
+  runeTreeTitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "800"
+  },
+  runeSlotRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
+  },
+  runeIcon: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden"
+  },
+  runeIconSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft
+  },
+  runeFallback: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "900"
+  },
+  runeFallbackSelected: {
+    color: colors.primary
+  },
+  statShardPanel: {
     gap: 7
   },
   counterMiniList: {

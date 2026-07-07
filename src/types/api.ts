@@ -21,6 +21,27 @@ export type NamedImage = {
   image?: ImageData | null;
 };
 
+export type RuneOption = {
+  id: number | string;
+  name: string;
+  image?: ImageData | null;
+  selected: boolean;
+};
+
+export type RuneSlot = {
+  runes: RuneOption[];
+};
+
+export type RuneTree = {
+  style_id?: number | null;
+  name: string;
+  slots: RuneSlot[];
+};
+
+export type StatShardRow = {
+  runes: RuneOption[];
+};
+
 export type ChampionTier = {
   rank?: number;
   champion_id: string;
@@ -80,6 +101,9 @@ export type BuildData = {
     secondary_runes?: string[];
     secondary_rune_images?: NamedImage[];
     stat_shards?: string[];
+    primary_tree?: RuneTree | null;
+    secondary_tree?: RuneTree | null;
+    stat_shard_rows?: StatShardRow[];
   };
   spells?: NamedImage[];
   items?: {
